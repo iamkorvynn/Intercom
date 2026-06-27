@@ -1,0 +1,741 @@
+# MASTER PROMPT — ANTIGRAVITY
+
+## Build "Intercom" – A Movie-Style Always Connected Push-to-Talk App
+
+You are an expert team consisting of:
+
+* Senior Flutter Engineer
+* Senior Backend Engineer
+* UI/UX Designer
+* Product Designer
+* DevOps Engineer
+* Security Engineer
+* Audio Streaming Engineer
+* QA Engineer
+
+Your task is to **design and build a complete production-ready mobile application** called **Intercom**.
+
+Do **not** generate placeholders or demo implementations unless explicitly requested. Build real, scalable, maintainable code with clean architecture.
+
+---
+
+# PROJECT OVERVIEW
+
+Intercom is **not a messaging app**.
+
+It is **not a walkie-talkie app**.
+
+It is a **persistent private communication system** inspired by movie intercoms.
+
+Two people connect once.
+
+From that moment, they remain connected.
+
+There are:
+
+❌ No phone calls
+
+❌ No ringing
+
+❌ No dialing
+
+❌ No waiting for someone to answer
+
+Instead,
+
+User presses
+
+↓
+
+Voice streams instantly
+
+↓
+
+Partner hears it immediately
+
+↓
+
+Release
+
+↓
+
+Transmission ends
+
+Think of the communication devices used in:
+
+* John Wick
+* Mission Impossible
+* The Dark Knight
+* Military radios
+* NASA communications
+* Police intercom systems
+
+The experience should feel instant.
+
+---
+
+# PRIMARY GOAL
+
+The application should feel like the two phones are permanently connected.
+
+The user should never think about calling someone.
+
+The only interaction should be
+
+PRESS → TALK → RELEASE
+
+---
+
+# DESIGN PHILOSOPHY
+
+Minimal.
+
+Premium.
+
+Fast.
+
+Dark.
+
+No unnecessary screens.
+
+Every animation should have a purpose.
+
+Every interaction should feel immediate.
+
+The interface should teach itself.
+
+---
+
+# TARGET USERS
+
+Couples
+
+Best Friends
+
+Families
+
+Roommates
+
+Small Teams
+
+Security Personnel
+
+College Students
+
+Film Crews
+
+Travel Groups
+
+---
+
+# APP FLOW
+
+Launch App
+
+↓
+
+Authenticate
+
+↓
+
+Pair with Partner
+
+↓
+
+Connection Established
+
+↓
+
+Always Connected Screen
+
+↓
+
+Press To Talk Anytime
+
+---
+
+# HOME SCREEN
+
+Top Area
+
+Partner Avatar
+
+Partner Name
+
+Connection Status
+
+Latency Indicator
+
+Battery Indicator
+
+Signal Indicator
+
+Center
+
+Large circular Push-To-Talk Button
+
+Animated waveform while transmitting
+
+Glowing outer ring
+
+Voice level visualization
+
+Bottom
+
+Speaker Toggle
+
+Bluetooth Toggle
+
+Mute Toggle
+
+Settings Button
+
+No chat window.
+
+No contact list.
+
+No conversations.
+
+Just communication.
+
+---
+
+# CONNECTION STATES
+
+Connecting
+
+Connected
+
+Partner Offline
+
+Reconnecting
+
+Poor Network
+
+Disconnected
+
+Each state must have smooth animated transitions.
+
+---
+
+# PUSH TO TALK
+
+When button pressed
+
+Immediately
+
+Activate microphone
+
+Begin live audio stream
+
+Display waveform
+
+Enable haptic feedback
+
+Show "Speaking..."
+
+Partner instantly hears audio
+
+When released
+
+Stop stream
+
+Return to idle
+
+---
+
+# AUDIO REQUIREMENTS
+
+Live streaming
+
+Ultra-low latency
+
+Target
+
+<300ms
+
+Use
+
+WebRTC
+
+or
+
+LiveKit
+
+Codec
+
+Opus
+
+Support
+
+Noise Suppression
+
+Echo Cancellation
+
+Automatic Gain Control
+
+Adaptive Bitrate
+
+Bluetooth Headsets
+
+Speaker Mode
+
+Earpiece Mode
+
+---
+
+# CONNECTION SYSTEM
+
+Maintain persistent websocket connection
+
+Heartbeat
+
+Automatic reconnect
+
+Resume after internet recovery
+
+Resume after app restart
+
+Resume after phone reboot (where platform permits)
+
+Handle WiFi
+
+5G
+
+LTE
+
+Automatically
+
+---
+
+# PAIRING
+
+Users pair once
+
+Methods
+
+QR Code
+
+6 Digit Code
+
+Invite Link
+
+Once paired
+
+Trust relationship created
+
+Partner remains connected until removed
+
+---
+
+# NOTIFICATIONS
+
+Incoming transmission
+
+Small vibration
+
+Instant playback
+
+No accept screen
+
+No ringing
+
+No missed call interface
+
+Only
+
+Missed transmission notification
+
+---
+
+# RECENT TRANSMISSIONS
+
+Optional replay
+
+Store locally
+
+Encrypted
+
+Delete automatically after configurable period
+
+---
+
+# SECURITY
+
+End-to-End Encryption
+
+Encrypted Audio Stream
+
+JWT Authentication
+
+Refresh Tokens
+
+Encrypted Local Storage
+
+Secure Device Registration
+
+Encrypted WebSockets
+
+No server-side audio storage
+
+---
+
+# BACKEND
+
+Flutter
+
+Firebase Authentication
+
+Firestore
+
+Cloud Functions
+
+Firebase Cloud Messaging
+
+LiveKit
+
+Redis
+
+Docker
+
+Nginx
+
+Cloud Run / VPS
+
+Monitoring
+
+Crash Reporting
+
+Analytics
+
+---
+
+# STATE MANAGEMENT
+
+Riverpod
+
+Repository Pattern
+
+Dependency Injection
+
+MVVM
+
+Feature-first architecture
+
+SOLID principles
+
+---
+
+# FOLDER STRUCTURE
+
+Create a scalable project structure.
+
+Separate
+
+Presentation
+
+Domain
+
+Data
+
+Core
+
+Services
+
+Models
+
+Repositories
+
+Widgets
+
+Utilities
+
+Routing
+
+Theme
+
+Assets
+
+Tests
+
+---
+
+# SETTINGS
+
+Theme
+
+Speaker Default
+
+Microphone Sensitivity
+
+Bluetooth Priority
+
+Auto Reconnect
+
+Notifications
+
+Vibration
+
+Security
+
+Blocked Users
+
+Privacy
+
+About
+
+---
+
+# FUTURE FEATURES
+
+Multiple Partners
+
+Groups
+
+Emergency Broadcast
+
+Temporary Voice Rooms
+
+Desktop App
+
+Wear OS
+
+Apple Watch
+
+Voice Translation
+
+AI Assistant
+
+Location Sharing
+
+Voice Effects
+
+Mission Mode
+
+Push-To-Listen Mode
+
+---
+
+# UI STYLE
+
+Minimal
+
+Premium
+
+Cyber-inspired
+
+No clutter
+
+Rounded corners
+
+Large touch targets
+
+Subtle shadows
+
+Smooth gradients
+
+Elegant animations
+
+Dark-first
+
+Use
+
+Black
+
+Dark Gray
+
+Neon Green
+
+White
+
+---
+
+# ANIMATIONS
+
+Button Pulse
+
+Glow
+
+Ripple
+
+Waveform
+
+Fade
+
+Slide
+
+Scale
+
+Spring Physics
+
+60 FPS
+
+---
+
+# PERFORMANCE TARGETS
+
+Cold Start
+
+<2 sec
+
+Latency
+
+<300 ms
+
+Reconnect
+
+<2 sec
+
+Battery Usage
+
+Minimal
+
+Memory Usage
+
+Optimized
+
+---
+
+# ERROR HANDLING
+
+No Internet
+
+Poor Connection
+
+Authentication Expired
+
+Microphone Permission Denied
+
+Bluetooth Failure
+
+Server Failure
+
+Automatic Recovery
+
+User Friendly Errors
+
+Retry Logic
+
+---
+
+# ACCESSIBILITY
+
+Dynamic Text
+
+Screen Reader
+
+High Contrast
+
+Large Buttons
+
+Haptic Feedback
+
+Accessible Colors
+
+---
+
+# TESTING
+
+Unit Tests
+
+Widget Tests
+
+Integration Tests
+
+Load Testing
+
+Stress Testing
+
+Network Failure Testing
+
+Audio Latency Testing
+
+---
+
+# DEPLOYMENT
+
+Android
+
+iOS
+
+CI/CD
+
+GitHub Actions
+
+Docker
+
+Production Environment
+
+Development Environment
+
+Staging Environment
+
+Environment Variables
+
+Secrets Management
+
+---
+
+# CODE STANDARDS
+
+Write production-quality code only.
+
+No deprecated APIs.
+
+No duplicated logic.
+
+No hardcoded values.
+
+Use constants.
+
+Use dependency injection.
+
+Write reusable components.
+
+Document all public classes.
+
+Optimize for maintainability.
+
+---
+
+# OUTPUT REQUIREMENTS
+
+Generate:
+
+* Complete Flutter application
+* Complete backend
+* Production-ready architecture
+* Beautiful UI
+* Responsive layouts
+* Authentication flow
+* Pairing flow
+* Push-to-Talk implementation
+* Live audio streaming
+* Persistent connection handling
+* State management
+* Database schema
+* REST/WebSocket APIs
+* Security implementation
+* Animations
+* Assets structure
+* Unit tests
+* Integration tests
+* CI/CD configuration
+* Deployment guide
+* README
+* Production checklist
+
+---
+
+# IMPORTANT TECHNICAL CONSTRAINTS
+
+* **Android first**. Optimize for Android before iOS because Android allows a closer approximation of an always-connected experience.
+* Respect platform limitations. Do **not** attempt unsupported 24/7 background microphone access or violate Android/iOS background execution policies.
+* Keep a lightweight persistent connection alive where possible, and activate audio streaming only while the Push-to-Talk button is pressed.
+* Design the architecture so future features like group communication and desktop clients can be added without major refactoring.
+
+---
+
+# SUCCESS CRITERIA
+
+The final product should feel like carrying a **real private intercom** in your pocket. The user opens the app once, pairs with someone, and from then on, communication is as simple as pressing one button to speak—fast, reliable, secure, and with a premium cinematic experience.
