@@ -45,7 +45,16 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-dev-client"
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00FF41",
+          "defaultChannel": "intercom",
+          "androidMode": "default"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

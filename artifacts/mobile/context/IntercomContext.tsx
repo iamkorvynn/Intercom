@@ -14,6 +14,7 @@ import {
   RoomEvent,
   Track,
 } from "@/services/lkRoom";
+import { registerForPushNotifications } from "@/services/notifications";
 
 export type ConnectionState =
   | "disconnected"
@@ -54,6 +55,7 @@ const STORAGE_KEYS = {
   MY_CODE: "@intercom/my_code",
   PARTNER: "@intercom/partner",
   LK_SESSION: "@intercom/lk_session",
+  PUSH_TOKEN: "@intercom/push_token",
   SPEAKER: "@intercom/speaker",
   MUTED: "@intercom/muted",
 };
@@ -79,18 +81,18 @@ async function requestMicPermission(): Promise<boolean> {
     );
     return result === PermissionsAndroid.RESULTS.GRANTED;
   }
-  // iOS permission is declared in app.json infoPlist and requested automatically
   return true;
 }
 
 async function fetchSession(
   myCode: string,
-  partnerCode: string
+  partnerCode: string,
+  pushToken: string | null
 ): Promise<LiveKitSession> {
   const res = await fetch(`${API_BASE}/intercom/session`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ myCode, partnerCode }),
+    body: JSON.stringify({ myCode, partnerCode, pushToken }),
   });
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -99,7 +101,19 @@ async function fetchSession(
   return res.json() as Promise<LiveKitSession>;
 }
 
-async function sendHeartbeat(myCode: string) {
+async function notifyTransmit(
+  myCode: string,
+  partnerCode: string,
+  senderName: string
+): Promise<void> {
+  await fetch(`${API_BASE}/intercom/transmit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ myCode, partnerCode, senderName }),
+  });
+}
+
+async function sendHeartbeat(myCode: string): Promise<void> {
   try {
     await fetch(`${API_BASE}/intercom/heartbeat`, {
       method: "POST",
@@ -107,7 +121,7 @@ async function sendHeartbeat(myCode: string) {
       body: JSON.stringify({ myCode }),
     });
   } catch {
-    /* ignore network errors in heartbeat */
+    /* ignore */
   }
 }
 
@@ -127,8 +141,10 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
   const roomRef = useRef<Room | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const myCodeRef = useRef<string>("");
+  const partnerRef = useRef<Partner | null>(null);
+  const pushTokenRef = useRef<string | null>(null);
 
-  // ── LiveKit room lifecycle ──────────────────────────────────────────────────
+  // ── Room lifecycle ──────────────────────────────────────────────────────────
 
   const teardownRoom = useCallback(() => {
     if (heartbeatRef.current) {
@@ -156,7 +172,6 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
         },
       });
 
-      // Connection state changes
       room.on(RoomEvent.ConnectionStateChanged, (state: LKConnectionState) => {
         if (state === LKConnectionState.Connected) {
           setConnectionState("connected");
@@ -167,7 +182,6 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      // Partner PTT detection via audio track publish/mute events
       room.on(RoomEvent.TrackPublished, (publication, participant) => {
         if (!participant.isLocal && publication.kind === Track.Kind.Audio) {
           setPartnerTransmitting(true);
@@ -192,7 +206,6 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
       await room.connect(session.livekitUrl, session.token);
       roomRef.current = room;
 
-      // Presence heartbeat every 15s
       heartbeatRef.current = setInterval(
         () => sendHeartbeat(myCodeRef.current),
         15_000
@@ -206,6 +219,7 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function init() {
       try {
+        // Device code
         let code = await AsyncStorage.getItem(STORAGE_KEYS.MY_CODE);
         if (!code) {
           code = generateDeviceCode();
@@ -214,25 +228,48 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
         setMyCode(code);
         myCodeRef.current = code;
 
-        const [partnerRaw, sessionRaw, speakerRaw, mutedRaw] =
-          await AsyncStorage.multiGet([
-            STORAGE_KEYS.PARTNER,
-            STORAGE_KEYS.LK_SESSION,
-            STORAGE_KEYS.SPEAKER,
-            STORAGE_KEYS.MUTED,
-          ]);
+        // Load persisted state
+        const keys = [
+          STORAGE_KEYS.PARTNER,
+          STORAGE_KEYS.LK_SESSION,
+          STORAGE_KEYS.PUSH_TOKEN,
+          STORAGE_KEYS.SPEAKER,
+          STORAGE_KEYS.MUTED,
+        ];
+        const pairs = await AsyncStorage.multiGet(keys);
+        const stored = Object.fromEntries(pairs.map(([k, v]) => [k, v]));
 
-        if (partnerRaw[1]) setPartner(JSON.parse(partnerRaw[1]));
-        if (speakerRaw[1] !== null) setIsSpeakerOn(speakerRaw[1] === "true");
-        if (mutedRaw[1] !== null) setIsMuted(mutedRaw[1] === "true");
+        if (stored[STORAGE_KEYS.SPEAKER] != null)
+          setIsSpeakerOn(stored[STORAGE_KEYS.SPEAKER] === "true");
+        if (stored[STORAGE_KEYS.MUTED] != null)
+          setIsMuted(stored[STORAGE_KEYS.MUTED] === "true");
 
-        if (partnerRaw[1] && sessionRaw[1]) {
-          const savedSession: LiveKitSession = JSON.parse(sessionRaw[1]);
-          connectRoom(savedSession).catch(() => {
-            // Token may have expired; user will need to re-pair
-            setConnectionState("disconnected");
-          });
+        // Push token
+        const savedPushToken = stored[STORAGE_KEYS.PUSH_TOKEN];
+        if (savedPushToken) pushTokenRef.current = savedPushToken;
+
+        // Restore partner + LiveKit session
+        if (stored[STORAGE_KEYS.PARTNER]) {
+          const p: Partner = JSON.parse(stored[STORAGE_KEYS.PARTNER]);
+          setPartner(p);
+          partnerRef.current = p;
         }
+        if (stored[STORAGE_KEYS.PARTNER] && stored[STORAGE_KEYS.LK_SESSION]) {
+          const session: LiveKitSession = JSON.parse(
+            stored[STORAGE_KEYS.LK_SESSION]
+          );
+          connectRoom(session).catch(() => setConnectionState("disconnected"));
+        }
+
+        // Register for push notifications (no-op on web)
+        registerForPushNotifications()
+          .then(async (token) => {
+            if (token && token !== savedPushToken) {
+              pushTokenRef.current = token;
+              await AsyncStorage.setItem(STORAGE_KEYS.PUSH_TOKEN, token);
+            }
+          })
+          .catch(() => {});
       } catch {
         /* use defaults */
       } finally {
@@ -247,9 +284,14 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
 
   const pair = useCallback(
     async (code: string, name: string) => {
-      const session = await fetchSession(myCodeRef.current, code);
+      const session = await fetchSession(
+        myCodeRef.current,
+        code,
+        pushTokenRef.current
+      );
       const newPartner: Partner = { code, name };
       setPartner(newPartner);
+      partnerRef.current = newPartner;
       await AsyncStorage.multiSet([
         [STORAGE_KEYS.PARTNER, JSON.stringify(newPartner)],
         [STORAGE_KEYS.LK_SESSION, JSON.stringify(session)],
@@ -262,6 +304,7 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
   const unpair = useCallback(async () => {
     teardownRoom();
     setPartner(null);
+    partnerRef.current = null;
     setConnectionState("disconnected");
     setIsTransmitting(false);
     setPartnerTransmitting(false);
@@ -280,6 +323,14 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
     setIsTransmitting(true);
     try {
       await roomRef.current.localParticipant.setMicrophoneEnabled(true);
+      // Fire-and-forget: notify partner if they're offline
+      if (partnerRef.current) {
+        notifyTransmit(
+          myCodeRef.current,
+          partnerRef.current.code,
+          partnerRef.current.name
+        ).catch(() => {});
+      }
     } catch {
       setIsTransmitting(false);
     }

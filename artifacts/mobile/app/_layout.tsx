@@ -8,22 +8,54 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { IntercomProvider } from "@/context/IntercomContext";
 import colors from "@/constants/colors";
+import {
+  onNotificationReceived,
+  onNotificationResponse,
+  type NotificationSubscription,
+} from "@/services/notifications";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 const C = colors.dark;
 
+function NotificationListeners() {
+  const receivedSub = useRef<NotificationSubscription | null>(null);
+  const responseSub = useRef<NotificationSubscription | null>(null);
+
+  useEffect(() => {
+    // Fires when a notification arrives while the app is foregrounded
+    receivedSub.current = onNotificationReceived((_notification) => {
+      // App is already open — the waveform + partner avatar will update via
+      // LiveKit events. Nothing extra needed here.
+    });
+
+    // Fires when the user taps a notification from background/killed state
+    responseSub.current = onNotificationResponse((_response) => {
+      // The app will open to wherever expo-router left off (main screen).
+      // No explicit navigation needed — router state persists.
+    });
+
+    return () => {
+      receivedSub.current?.remove();
+      responseSub.current?.remove();
+    };
+  }, []);
+
+  return null;
+}
+
 function RootLayoutNav() {
   return (
     <IntercomProvider>
+      <NotificationListeners />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: C.surface },
