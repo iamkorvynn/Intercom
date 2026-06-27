@@ -56,7 +56,6 @@ async function sendExpoPush(
       data,
       priority: "high",
       channelId: "intercom",
-      vibrate: [0, 80, 180, 80],
     }),
   });
 }
@@ -147,7 +146,7 @@ router.post("/intercom/transmit", async (req, res) => {
       senderName
         ? `${senderName} is trying to reach you`
         : "Someone is trying to reach you — open Intercom",
-      { type: "intercom-ptt", from: myCode }
+      { type: "intercom-ptt", from: myCode, senderName: senderName ?? "" }
     );
     res.json({ notified: true });
   } catch (err) {

@@ -20,6 +20,7 @@ import {
   onNotificationResponse,
   type NotificationSubscription,
 } from "@/services/notifications";
+import { addMissedTransmission } from "@/services/transmissionLog";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,16 +32,28 @@ function NotificationListeners() {
   const responseSub = useRef<NotificationSubscription | null>(null);
 
   useEffect(() => {
-    // Fires when a notification arrives while the app is foregrounded
-    receivedSub.current = onNotificationReceived((_notification) => {
-      // App is already open — the waveform + partner avatar will update via
-      // LiveKit events. Nothing extra needed here.
+    // Notification arrives while app is foregrounded (partner transmitted)
+    receivedSub.current = onNotificationReceived((notification) => {
+      const data = notification.request.content.data as Record<string, string> | null;
+      if (data?.type === "intercom-ptt") {
+        addMissedTransmission(
+          notification.request.identifier,
+          data.from ?? "",
+          data.senderName ?? data.from ?? ""
+        ).catch(() => {});
+      }
     });
 
-    // Fires when the user taps a notification from background/killed state
-    responseSub.current = onNotificationResponse((_response) => {
-      // The app will open to wherever expo-router left off (main screen).
-      // No explicit navigation needed — router state persists.
+    // User taps a notification from background / killed state
+    responseSub.current = onNotificationResponse((response) => {
+      const data = response.notification.request.content.data as Record<string, string> | null;
+      if (data?.type === "intercom-ptt") {
+        addMissedTransmission(
+          response.notification.request.identifier,
+          data.from ?? "",
+          data.senderName ?? data.from ?? ""
+        ).catch(() => {});
+      }
     });
 
     return () => {
@@ -78,6 +91,18 @@ function RootLayoutNav() {
             title: "SETTINGS",
             presentation: "modal",
             headerStyle: { backgroundColor: C.surface },
+          }}
+        />
+        <Stack.Screen
+          name="history"
+          options={{
+            title: "LOG",
+            headerStyle: { backgroundColor: C.surface },
+            headerTitleStyle: {
+              fontFamily: "Inter_600SemiBold",
+              letterSpacing: 4,
+              fontSize: 11,
+            },
           }}
         />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

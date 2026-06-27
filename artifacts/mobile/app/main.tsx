@@ -1,14 +1,17 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AppState, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import colors from "@/constants/colors";
 import { PartnerDisplay } from "@/components/PartnerDisplay";
 import { PushToTalkButton } from "@/components/PushToTalkButton";
 import { SignalIndicator } from "@/components/SignalIndicator";
 import { WaveformVisualizer } from "@/components/WaveformVisualizer";
 import { useIntercom } from "@/context/IntercomContext";
+import { getUnreadCount } from "@/services/transmissionLog";
 
 const C = colors.dark;
 
@@ -26,31 +29,52 @@ export default function MainScreen() {
     toggleSpeaker,
   } = useIntercom();
 
+  const [unreadCount, setUnreadCount] = useState(0);
+  const appStateRef = useRef(AppState.currentState);
+
   const insets = useSafeAreaInsets();
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
-  async function handlePressIn() {
-    await startTransmitting();
-  }
-
-  async function handlePressOut() {
-    await stopTransmitting();
-  }
+  // Refresh badge when app comes to foreground
+  useEffect(() => {
+    const refresh = () => {
+      getUnreadCount().then(setUnreadCount).catch(() => {});
+    };
+    refresh();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        next === "active"
+      ) {
+        refresh();
+      }
+      appStateRef.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   const waveformActive = isTransmitting || partnerTransmitting;
-  const waveformColor = partnerTransmitting && !isTransmitting ? "#888888" : C.green;
+  const waveformColor =
+    partnerTransmitting && !isTransmitting ? "#888888" : C.green;
+
+  const handleHistoryPress = () => {
+    setUnreadCount(0);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/history");
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: topPad, paddingBottom: bottomPad },
+      ]}
+    >
       {/* Top bar */}
       <View style={styles.topBar}>
-        <View style={styles.topLeft}>
-          <Text style={styles.appName}>INTERCOM</Text>
-        </View>
-        <View style={styles.topRight}>
-          <SignalIndicator connectionState={connectionState} />
-        </View>
+        <Text style={styles.appName}>INTERCOM</Text>
+        <SignalIndicator connectionState={connectionState} />
       </View>
 
       {/* Partner section */}
@@ -83,12 +107,12 @@ export default function MainScreen() {
           connectionState={connectionState}
           isTransmitting={isTransmitting}
           isMuted={isMuted}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
+          onPressIn={startTransmitting}
+          onPressOut={stopTransmitting}
         />
       </View>
 
-      {/* Bottom controls */}
+      {/* Bottom controls: 4 buttons */}
       <View style={styles.bottomControls}>
         <Pressable
           style={[styles.controlBtn, isMuted && styles.controlBtnActive]}
@@ -99,10 +123,12 @@ export default function MainScreen() {
         >
           <Feather
             name={isMuted ? "mic-off" : "mic"}
-            size={22}
+            size={20}
             color={isMuted ? C.green : C.mutedForeground}
           />
-          <Text style={[styles.controlLabel, isMuted && styles.controlLabelActive]}>
+          <Text
+            style={[styles.controlLabel, isMuted && styles.controlLabelActive]}
+          >
             {isMuted ? "UNMUTE" : "MUTE"}
           </Text>
         </Pressable>
@@ -116,19 +142,49 @@ export default function MainScreen() {
         >
           <Feather
             name={isSpeakerOn ? "volume-2" : "volume-x"}
-            size={22}
+            size={20}
             color={isSpeakerOn ? C.green : C.mutedForeground}
           />
-          <Text style={[styles.controlLabel, isSpeakerOn && styles.controlLabelActive]}>
+          <Text
+            style={[
+              styles.controlLabel,
+              isSpeakerOn && styles.controlLabelActive,
+            ]}
+          >
             {isSpeakerOn ? "SPEAKER" : "EARPIECE"}
+          </Text>
+        </Pressable>
+
+        {/* History with unread badge */}
+        <Pressable style={styles.controlBtn} onPress={handleHistoryPress}>
+          <View style={styles.iconWrap}>
+            <Feather name="inbox" size={20} color={unreadCount > 0 ? C.green : C.mutedForeground} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text
+            style={[
+              styles.controlLabel,
+              unreadCount > 0 && styles.controlLabelActive,
+            ]}
+          >
+            LOG
           </Text>
         </Pressable>
 
         <Pressable
           style={styles.controlBtn}
-          onPress={() => router.push("/settings")}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/settings");
+          }}
         >
-          <Feather name="settings" size={22} color={C.mutedForeground} />
+          <Feather name="settings" size={20} color={C.mutedForeground} />
           <Text style={styles.controlLabel}>SETTINGS</Text>
         </Pressable>
       </View>
@@ -149,8 +205,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 8,
   },
-  topLeft: {},
-  topRight: {},
   appName: {
     color: `rgba(0, 255, 65, 0.6)`,
     fontSize: 11,
@@ -195,13 +249,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     paddingVertical: 16,
-    gap: 8,
+    gap: 6,
   },
   controlBtn: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 14,
     backgroundColor: C.card,
     gap: 6,
@@ -220,5 +274,26 @@ const styles = StyleSheet.create({
   },
   controlLabelActive: {
     color: C.green,
+  },
+  iconWrap: {
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -8,
+    backgroundColor: C.green,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    color: C.background,
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 12,
   },
 });
