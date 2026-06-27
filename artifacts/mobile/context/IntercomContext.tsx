@@ -1,10 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  ConnectionState as LKConnectionState,
-  Room,
-  RoomEvent,
-  Track,
-} from "livekit-client";
 import React, {
   createContext,
   useCallback,
@@ -13,6 +7,13 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { PermissionsAndroid, Platform } from "react-native";
+import {
+  ConnectionState as LKConnectionState,
+  Room,
+  RoomEvent,
+  Track,
+} from "@/services/lkRoom";
 
 export type ConnectionState =
   | "disconnected"
@@ -65,6 +66,23 @@ function generateDeviceCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+async function requestMicPermission(): Promise<boolean> {
+  if (Platform.OS === "android") {
+    const result = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      {
+        title: "Microphone Access",
+        message: "Intercom needs microphone access for push-to-talk.",
+        buttonPositive: "Allow",
+        buttonNegative: "Deny",
+      }
+    );
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  }
+  // iOS permission is declared in app.json infoPlist and requested automatically
+  return true;
+}
+
 async function fetchSession(
   myCode: string,
   partnerCode: string
@@ -75,18 +93,22 @@ async function fetchSession(
     body: JSON.stringify({ myCode, partnerCode }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? "Session failed");
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? "Session request failed");
   }
   return res.json() as Promise<LiveKitSession>;
 }
 
 async function sendHeartbeat(myCode: string) {
-  await fetch(`${API_BASE}/intercom/heartbeat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ myCode }),
-  });
+  try {
+    await fetch(`${API_BASE}/intercom/heartbeat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ myCode }),
+    });
+  } catch {
+    /* ignore network errors in heartbeat */
+  }
 }
 
 const IntercomContext = createContext<IntercomContextType | null>(null);
@@ -106,10 +128,13 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const myCodeRef = useRef<string>("");
 
-  // ── LiveKit room setup ──────────────────────────────────────────────────────
+  // ── LiveKit room lifecycle ──────────────────────────────────────────────────
 
   const teardownRoom = useCallback(() => {
-    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
     if (roomRef.current) {
       roomRef.current.disconnect();
       roomRef.current = null;
@@ -119,7 +144,6 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
   const connectRoom = useCallback(
     async (session: LiveKitSession) => {
       teardownRoom();
-
       setConnectionState("connecting");
 
       const room = new Room({
@@ -132,31 +156,18 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
         },
       });
 
-      room.on(LKConnectionState.Connected, () => {
-        setConnectionState("connected");
-      });
-      room.on(RoomEvent.Disconnected, () => {
-        setConnectionState("disconnected");
-      });
-      room.on(RoomEvent.Reconnecting, () => {
-        setConnectionState("connecting");
-      });
-      room.on(RoomEvent.Reconnected, () => {
-        setConnectionState("connected");
-      });
-      room.on(RoomEvent.ConnectionQualityChanged, (_quality, participant) => {
-        if (!participant) return;
-        // Only show "poor" for local participant
-        if (participant.isLocal) {
-          if (_quality === "poor") {
-            setConnectionState("poor");
-          } else if (connectionState === "poor") {
-            setConnectionState("connected");
-          }
+      // Connection state changes
+      room.on(RoomEvent.ConnectionStateChanged, (state: LKConnectionState) => {
+        if (state === LKConnectionState.Connected) {
+          setConnectionState("connected");
+        } else if (state === LKConnectionState.Disconnected) {
+          setConnectionState("disconnected");
+        } else if (state === LKConnectionState.Reconnecting) {
+          setConnectionState("connecting");
         }
       });
 
-      // Partner PTT detection: track published = transmitting, unpublished = idle
+      // Partner PTT detection via audio track publish/mute events
       room.on(RoomEvent.TrackPublished, (publication, participant) => {
         if (!participant.isLocal && publication.kind === Track.Kind.Audio) {
           setPartnerTransmitting(true);
@@ -181,14 +192,11 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
       await room.connect(session.livekitUrl, session.token);
       roomRef.current = room;
 
-      // Start heartbeat loop
-      heartbeatRef.current = setInterval(async () => {
-        try {
-          await sendHeartbeat(myCodeRef.current);
-        } catch {
-          /* ignore */
-        }
-      }, 15_000);
+      // Presence heartbeat every 15s
+      heartbeatRef.current = setInterval(
+        () => sendHeartbeat(myCodeRef.current),
+        15_000
+      );
     },
     [teardownRoom]
   );
@@ -206,24 +214,25 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
         setMyCode(code);
         myCodeRef.current = code;
 
-        const partnerRaw = await AsyncStorage.getItem(STORAGE_KEYS.PARTNER);
-        const sessionRaw = await AsyncStorage.getItem(STORAGE_KEYS.LK_SESSION);
+        const [partnerRaw, sessionRaw, speakerRaw, mutedRaw] =
+          await AsyncStorage.multiGet([
+            STORAGE_KEYS.PARTNER,
+            STORAGE_KEYS.LK_SESSION,
+            STORAGE_KEYS.SPEAKER,
+            STORAGE_KEYS.MUTED,
+          ]);
 
-        if (partnerRaw && sessionRaw) {
-          const savedPartner: Partner = JSON.parse(partnerRaw);
-          const savedSession: LiveKitSession = JSON.parse(sessionRaw);
-          setPartner(savedPartner);
-          // Reconnect with saved token (it lasts 24h)
+        if (partnerRaw[1]) setPartner(JSON.parse(partnerRaw[1]));
+        if (speakerRaw[1] !== null) setIsSpeakerOn(speakerRaw[1] === "true");
+        if (mutedRaw[1] !== null) setIsMuted(mutedRaw[1] === "true");
+
+        if (partnerRaw[1] && sessionRaw[1]) {
+          const savedSession: LiveKitSession = JSON.parse(sessionRaw[1]);
           connectRoom(savedSession).catch(() => {
-            // Token may have expired — will need to re-pair
+            // Token may have expired; user will need to re-pair
             setConnectionState("disconnected");
           });
         }
-
-        const speakerRaw = await AsyncStorage.getItem(STORAGE_KEYS.SPEAKER);
-        if (speakerRaw !== null) setIsSpeakerOn(speakerRaw === "true");
-        const mutedRaw = await AsyncStorage.getItem(STORAGE_KEYS.MUTED);
-        if (mutedRaw !== null) setIsMuted(mutedRaw === "true");
       } catch {
         /* use defaults */
       } finally {
@@ -231,9 +240,8 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
       }
     }
     init();
-
     return () => teardownRoom();
-  }, []);
+  }, [connectRoom, teardownRoom]);
 
   // ── Pairing ─────────────────────────────────────────────────────────────────
 
@@ -242,14 +250,10 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
       const session = await fetchSession(myCodeRef.current, code);
       const newPartner: Partner = { code, name };
       setPartner(newPartner);
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.PARTNER,
-        JSON.stringify(newPartner)
-      );
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.LK_SESSION,
-        JSON.stringify(session)
-      );
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.PARTNER, JSON.stringify(newPartner)],
+        [STORAGE_KEYS.LK_SESSION, JSON.stringify(session)],
+      ]);
       await connectRoom(session);
     },
     [connectRoom]
@@ -261,13 +265,18 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
     setConnectionState("disconnected");
     setIsTransmitting(false);
     setPartnerTransmitting(false);
-    await AsyncStorage.multiRemove([STORAGE_KEYS.PARTNER, STORAGE_KEYS.LK_SESSION]);
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.PARTNER,
+      STORAGE_KEYS.LK_SESSION,
+    ]);
   }, [teardownRoom]);
 
   // ── PTT ─────────────────────────────────────────────────────────────────────
 
   const startTransmitting = useCallback(async () => {
     if (isMuted || connectionState !== "connected" || !roomRef.current) return;
+    const hasPermission = await requestMicPermission();
+    if (!hasPermission) return;
     setIsTransmitting(true);
     try {
       await roomRef.current.localParticipant.setMicrophoneEnabled(true);
@@ -288,9 +297,7 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => {
       const next = !prev;
-      if (next && isTransmitting) {
-        stopTransmitting();
-      }
+      if (next && isTransmitting) stopTransmitting();
       AsyncStorage.setItem(STORAGE_KEYS.MUTED, String(next));
       return next;
     });

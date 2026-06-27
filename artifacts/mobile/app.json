@@ -14,11 +14,24 @@
       "backgroundColor": "#060606"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Intercom needs microphone access for push-to-talk communication.",
+        "NSCameraUsageDescription": "Intercom does not use the camera.",
+        "UIBackgroundModes": ["audio", "voip"]
+      }
     },
     "android": {
       "backgroundColor": "#060606",
-      "statusBarColor": "#060606"
+      "statusBarColor": "#060606",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -31,7 +44,8 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-dev-client"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,0 +1,2 @@
+- [Expo Metro watcher fix](expo-metro-watcher.md) — pnpm postinstall creates _tmp_ dirs Metro tries to watch; metro.config.js blockList + restart after install fixes it.
+- [LiveKit plugin issue](livekit-setup.md) — @livekit/react-native-webrtc has no app.plugin.js; do NOT add it to app.json plugins array. Permissions go in ios.infoPlist and android.permissions directly.

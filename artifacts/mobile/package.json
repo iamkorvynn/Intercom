@@ -56,6 +56,9 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@livekit/react-native": "^2.11.1",
+    "@livekit/react-native-webrtc": "^144.1.1",
+    "expo-dev-client": "^56.0.20",
     "livekit-client": "^2.20.0"
   }
 }
