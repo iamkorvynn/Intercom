@@ -249,15 +249,15 @@ export function IntercomProvider({ children }: { children: React.ReactNode }) {
         if (savedPushToken) pushTokenRef.current = savedPushToken;
 
         // Restore partner + LiveKit session
-        if (stored[STORAGE_KEYS.PARTNER]) {
-          const p: Partner = JSON.parse(stored[STORAGE_KEYS.PARTNER]);
+        const partnerStr = stored[STORAGE_KEYS.PARTNER];
+        if (partnerStr) {
+          const p: Partner = JSON.parse(partnerStr);
           setPartner(p);
           partnerRef.current = p;
         }
-        if (stored[STORAGE_KEYS.PARTNER] && stored[STORAGE_KEYS.LK_SESSION]) {
-          const session: LiveKitSession = JSON.parse(
-            stored[STORAGE_KEYS.LK_SESSION]
-          );
+        const sessionStr = stored[STORAGE_KEYS.LK_SESSION];
+        if (partnerStr && sessionStr) {
+          const session: LiveKitSession = JSON.parse(sessionStr);
           connectRoom(session).catch(() => setConnectionState("disconnected"));
         }
 

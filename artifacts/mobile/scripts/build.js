@@ -67,10 +67,10 @@ function getDeploymentDomain() {
     return stripProtocol(process.env.EXPO_PUBLIC_DOMAIN);
   }
 
-  console.error(
-    "ERROR: No deployment domain found. Set REPLIT_INTERNAL_APP_DOMAIN, REPLIT_DEV_DOMAIN, or EXPO_PUBLIC_DOMAIN",
+  console.warn(
+    "WARNING: No deployment domain found. Falling back to localhost.",
   );
-  process.exit(1);
+  return "localhost";
 }
 
 function prepareDirectories(timestamp) {
@@ -146,21 +146,22 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     console.log(`Setting EXPO_PUBLIC_REPL_ID=${expoPublicReplId}`);
   }
 
+  const npmExecpath = process.env.npm_execpath;
+  const isPnpm = npmExecpath && (npmExecpath.includes("pnpm") || npmExecpath.includes("pnpm-cli"));
+  const spawnBin = isPnpm ? process.execPath : (process.platform === "win32" ? "pnpm.cmd" : "pnpm");
+  const spawnArgs = isPnpm
+    ? [npmExecpath, "exec", "expo", "start", "--no-dev", "--minify", "--localhost"]
+    : ["exec", "expo", "start", "--no-dev", "--minify", "--localhost"];
+
   metroProcess = spawn(
-    "pnpm",
-    [
-      "exec",
-      "expo",
-      "start",
-      "--no-dev",
-      "--minify",
-      "--localhost",
-    ],
+    spawnBin,
+    spawnArgs,
     {
       stdio: ["ignore", "pipe", "pipe"],
       detached: false,
       cwd: projectRoot,
       env,
+      shell: isPnpm ? false : (process.platform === "win32"),
     },
   );
 
@@ -193,7 +194,7 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
 
 async function downloadFile(url, outputPath) {
   const controller = new AbortController();
-  const fiveMinMS = 5 * 60 * 1_000;
+  const fiveMinMS = 15 * 60 * 1_000;
   const timeoutId = setTimeout(() => controller.abort(), fiveMinMS);
 
   try {
@@ -235,7 +236,7 @@ async function downloadBundle(platform, timestamp) {
   url.searchParams.set("dev", "false");
   url.searchParams.set("hot", "false");
   url.searchParams.set("lazy", "false");
-  url.searchParams.set("minify", "true");
+  url.searchParams.set("minify", "false");
 
   const output = path.join(
     "static-build",
@@ -254,7 +255,7 @@ async function downloadBundle(platform, timestamp) {
 
 async function downloadManifest(platform) {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 300_000);
+  const timeoutId = setTimeout(() => controller.abort(), 900_000);
 
   try {
     console.log(`Fetching ${platform} manifest...`);

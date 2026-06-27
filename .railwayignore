@@ -1,0 +1,5 @@
+node_modules
+artifacts/mobile_flutter
+.git
+.local
+.agents

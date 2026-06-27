@@ -9,6 +9,8 @@ interface DeviceRecord {
 }
 
 const devices = new Map<string, DeviceRecord>();
+const pairings = new Map<string, string>();      // myCode -> partnerCode
+const partnerNames = new Map<string, string>();  // myCode -> name of my partner
 
 const ONLINE_THRESHOLD_MS = 15_000;
 
@@ -65,12 +67,13 @@ async function sendExpoPush(
 /**
  * POST /api/intercom/session
  * Register + pair + get LiveKit token in one call.
- * Body: { myCode, partnerCode, pushToken? }
+ * Body: { myCode, partnerCode, partnerName?, pushToken? }
  */
 router.post("/intercom/session", async (req, res) => {
-  const { myCode, partnerCode, pushToken } = req.body as {
+  const { myCode, partnerCode, partnerName, pushToken } = req.body as {
     myCode?: string;
     partnerCode?: string;
+    partnerName?: string;
     pushToken?: string;
   };
 
@@ -83,6 +86,16 @@ router.post("/intercom/session", async (req, res) => {
     lastSeen: Date.now(),
     pushToken: pushToken ?? devices.get(myCode)?.pushToken,
   });
+
+  // Track pairing on server
+  pairings.set(myCode, partnerCode);
+  pairings.set(partnerCode, myCode);
+  if (partnerName) {
+    partnerNames.set(myCode, partnerName);
+  }
+  if (!partnerNames.has(partnerCode)) {
+    partnerNames.set(partnerCode, "Partner");
+  }
 
   const livekitUrl = process.env.LIVEKIT_URL;
   if (!livekitUrl) {
@@ -100,6 +113,52 @@ router.post("/intercom/session", async (req, res) => {
     res.status(500).json({ error: "Failed to generate token" });
   }
 });
+
+/**
+ * GET /api/intercom/check-pairing
+ * Query if a device has been paired by someone else.
+ */
+router.get("/intercom/check-pairing", (req, res) => {
+  const { myCode } = req.query as { myCode?: string };
+  if (!myCode) {
+    res.status(400).json({ error: "myCode is required" });
+    return;
+  }
+
+  const partnerCode = pairings.get(myCode);
+  if (partnerCode) {
+    res.json({
+      paired: true,
+      partnerCode,
+      partnerName: partnerNames.get(myCode) || "Partner",
+    });
+  } else {
+    res.json({ paired: false });
+  }
+});
+
+/**
+ * POST /api/intercom/unpair
+ * Unpair two connected devices.
+ */
+router.post("/intercom/unpair", (req, res) => {
+  const { myCode } = req.body as { myCode?: string };
+  if (!myCode) {
+    res.status(400).json({ error: "myCode is required" });
+    return;
+  }
+
+  const partnerCode = pairings.get(myCode);
+  if (partnerCode) {
+    pairings.delete(myCode);
+    pairings.delete(partnerCode);
+    partnerNames.delete(myCode);
+    partnerNames.delete(partnerCode);
+  }
+
+  res.json({ ok: true });
+});
+
 
 /**
  * POST /api/intercom/transmit

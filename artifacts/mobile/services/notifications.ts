@@ -11,6 +11,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: false,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: false,
+    shouldShowList: false,
   }),
 });
 
@@ -24,10 +26,11 @@ const CHANNEL_ID = "intercom";
 export async function registerForPushNotifications(): Promise<string | null> {
   if (Platform.OS === "web") return null;
 
-  let { status } = await Notifications.getPermissionsAsync();
+  const settings = await Notifications.getPermissionsAsync();
+  let status = (settings as any).status;
   if (status !== "granted") {
-    const { status: asked } = await Notifications.requestPermissionsAsync();
-    status = asked;
+    const askedSettings = await Notifications.requestPermissionsAsync();
+    status = (askedSettings as any).status;
   }
   if (status !== "granted") return null;
 

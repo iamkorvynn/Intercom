@@ -13,4 +13,4 @@ export {
   Room,
   RoomEvent,
   Track,
-} from "@livekit/react-native";
+} from "livekit-client";

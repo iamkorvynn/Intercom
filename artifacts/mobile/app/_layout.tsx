@@ -75,7 +75,6 @@ function RootLayoutNav() {
           headerTintColor: C.foreground,
           headerTitleStyle: {
             fontFamily: "Inter_600SemiBold",
-            letterSpacing: 1,
             fontSize: 14,
           },
           headerShadowVisible: false,
@@ -100,7 +99,6 @@ function RootLayoutNav() {
             headerStyle: { backgroundColor: C.surface },
             headerTitleStyle: {
               fontFamily: "Inter_600SemiBold",
-              letterSpacing: 4,
               fontSize: 11,
             },
           }}
